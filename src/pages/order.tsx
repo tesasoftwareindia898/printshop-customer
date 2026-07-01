@@ -1,56 +1,60 @@
-import { useEffect } from "react";
+import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { format } from "date-fns";
 import { CheckCircle, Clock, File as FileIcon, Printer, IndianRupee, AlertCircle, ChevronLeft } from "lucide-react";
-import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-import { useGetOrder, getGetOrderQueryKey } from "@workspace/api-client-react";
-import { useQueryClient } from "@tanstack/react-query";
+
+const API_URL = import.meta.env.VITE_API_URL || "";
 
 export function Order() {
   const params = useParams();
   const id = Number(params.id);
-  const queryClient = useQueryClient();
+  const [order, setOrder] = useState<any>(null);
+  const [isLoading, setIsLoading] = useState(true);
+  const [isError, setIsError] = useState(false);
 
-  const { data: order, isLoading, isError } = useGetOrder(id, {
-    query: {
-      enabled: !!id,
-      queryKey: getGetOrderQueryKey(id),
-      refetchInterval: 10000, // poll every 10 seconds
+  const fetchOrder = async () => {
+    try {
+      const res = await fetch(`${API_URL}/api/orders/${id}`);
+      if (!res.ok) throw new Error("Not found");
+      const data = await res.json();
+      setOrder(data);
+    } catch {
+      setIsError(true);
+    } finally {
+      setIsLoading(false);
     }
-  });
+  };
+
+  useEffect(() => {
+    if (id) {
+      fetchOrder();
+      const interval = setInterval(fetchOrder, 10000);
+      return () => clearInterval(interval);
+    }
+  }, [id]);
 
   const getStatusBadge = (status: string) => {
     switch (status) {
-      case "pending":
-        return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Awaiting Payment</Badge>;
-      case "payment_submitted":
-        return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Payment Verifying</Badge>;
-      case "confirmed":
-        return <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">Payment Confirmed</Badge>;
-      case "printing":
-        return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">Printing Now</Badge>;
-      case "completed":
-        return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Ready for Pickup</Badge>;
-      default:
-        return <Badge variant="outline">{status}</Badge>;
+      case "pending": return <Badge variant="outline" className="bg-yellow-50 text-yellow-700 border-yellow-200">Awaiting Payment</Badge>;
+      case "payment_submitted": return <Badge variant="outline" className="bg-blue-50 text-blue-700 border-blue-200">Payment Verifying</Badge>;
+      case "confirmed": return <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">Payment Confirmed</Badge>;
+      case "printing": return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">Printing Now</Badge>;
+      case "completed": return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Ready for Pickup</Badge>;
+      default: return <Badge variant="outline">{status}</Badge>;
     }
   };
 
   const getStatusIcon = (status: string) => {
     switch (status) {
       case "pending":
-      case "payment_submitted":
-        return <Clock className="w-12 h-12 text-blue-500" />;
-      case "confirmed":
-        return <CheckCircle className="w-12 h-12 text-indigo-500" />;
-      case "printing":
-        return <Printer className="w-12 h-12 text-purple-500" />;
-      case "completed":
-        return <CheckCircle className="w-12 h-12 text-green-500" />;
-      default:
-        return <AlertCircle className="w-12 h-12 text-gray-500" />;
+      case "payment_submitted": return <Clock className="w-12 h-12 text-blue-500" />;
+      case "confirmed": return <CheckCircle className="w-12 h-12 text-indigo-500" />;
+      case "printing": return <Printer className="w-12 h-12 text-purple-500" />;
+      case "completed": return <CheckCircle className="w-12 h-12 text-green-500" />;
+      default: return <AlertCircle className="w-12 h-12 text-gray-500" />;
     }
   };
 
@@ -82,9 +86,7 @@ export function Order() {
         <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
         <h2 className="text-2xl font-bold mb-2">Order Not Found</h2>
         <p className="text-muted-foreground mb-6">We couldn't find the order you're looking for.</p>
-        <Button asChild>
-          <Link href="/">Back to Home</Link>
-        </Button>
+        <Button asChild><Link href="/">Back to Home</Link></Button>
       </div>
     );
   }
@@ -97,14 +99,10 @@ export function Order() {
 
       <Card className="overflow-hidden border shadow-sm">
         <div className="bg-muted/30 p-8 text-center border-b">
-          <div className="flex justify-center mb-4">
-            {getStatusIcon(order.status)}
-          </div>
+          <div className="flex justify-center mb-4">{getStatusIcon(order.status)}</div>
           <h1 className="text-2xl font-bold mb-2">Order #{order.id}</h1>
           <p className="text-muted-foreground mb-4">{getStatusMessage(order.status)}</p>
-          <div className="flex justify-center">
-            {getStatusBadge(order.status)}
-          </div>
+          <div className="flex justify-center">{getStatusBadge(order.status)}</div>
         </div>
 
         <CardContent className="p-8">
@@ -130,15 +128,12 @@ export function Order() {
                 </div>
               </dl>
             </div>
-
             <div>
               <h3 className="text-sm font-medium text-muted-foreground uppercase tracking-wider mb-4">Print Options</h3>
               <dl className="space-y-4 text-sm">
                 <div>
                   <dt className="text-muted-foreground mb-1">Configuration</dt>
-                  <dd className="font-medium text-foreground">
-                    {order.copies} {order.copies === 1 ? 'copy' : 'copies'} &times; {order.pages || 1} pages
-                  </dd>
+                  <dd className="font-medium text-foreground">{order.copies} {order.copies === 1 ? 'copy' : 'copies'} × {order.pages || 1} pages</dd>
                   <dd className="text-foreground">{order.colorMode}, {order.paperSize}</dd>
                 </div>
                 <div>
@@ -150,15 +145,12 @@ export function Order() {
                 {order.upiTransactionId && (
                   <div>
                     <dt className="text-muted-foreground mb-1">Payment UTR</dt>
-                    <dd className="font-mono text-xs bg-muted p-2 rounded truncate">
-                      {order.upiTransactionId}
-                    </dd>
+                    <dd className="font-mono text-xs bg-muted p-2 rounded truncate">{order.upiTransactionId}</dd>
                   </div>
                 )}
               </dl>
             </div>
           </div>
-
           {order.notes && (
             <div className="mt-8 p-4 bg-muted/50 rounded-lg">
               <h4 className="text-sm font-medium mb-1">Special Instructions:</h4>
