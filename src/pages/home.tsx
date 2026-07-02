@@ -218,7 +218,7 @@ export function Home() {
                                 {[{ value: "Black & White", label: "B&W", price: "₹2/page", icon: "⬜" },
                                   { value: "Color", label: "Color", price: "₹8/page", icon: "🎨" }].map((opt) => (
                                   <FormItem key={opt.value} className="flex items-center space-x-0 space-y-0">
-                                    <FormControl><RadioGroupItem value={opt.value} className="peer sr-only" /></RadioGroupItem>
+                                    <FormControl><RadioGroupItem value={opt.value} className="peer sr-only" /></FormControl>
                                     <FormLabel className="w-full cursor-pointer border border-gray-700 rounded-xl p-4 flex flex-col items-center gap-1 hover:border-blue-500 peer-data-[state=checked]:border-blue-500 peer-data-[state=checked]:bg-blue-500/10 transition-all">
                                       <span className="text-2xl">{opt.icon}</span>
                                       <span className="font-semibold text-white text-sm">{opt.label}</span>
