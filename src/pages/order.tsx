@@ -5,8 +5,7 @@ import { CheckCircle, Clock, File as FileIcon, Printer, IndianRupee, AlertCircle
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
-
-const API_URL = import.meta.env.VITE_API_URL || "";
+import { supabase } from "@/lib/supabase";
 
 export function Order() {
   const params = useParams();
@@ -17,9 +16,8 @@ export function Order() {
 
   const fetchOrder = async () => {
     try {
-      const res = await fetch(`${API_URL}/api/orders/${id}`);
-      if (!res.ok) throw new Error("Not found");
-      const data = await res.json();
+      const { data, error } = await supabase.from("orders").select("*").eq("id", id).single();
+      if (error || !data) throw new Error("Not found");
       setOrder(data);
     } catch {
       setIsError(true);
@@ -60,50 +58,6 @@ export function Order() {
     }
   };
 
-  const getStatusMessage = (status: string) => {
-    switch (status) {
-      case "pending": return "Please submit your payment UTR.";
-      case "payment_submitted": return "We are verifying your payment. This usually takes a few minutes.";
-      case "confirmed": return "Payment received! We will start printing soon.";
-      case "printing": return "Your document is currently being printed.";
-      case "completed": return "Your order is ready! Please pick it up from the shop.";
-      case "cancelled": return "This order has been cancelled by the administrator.";
-      default: return "Order status unknown.";
-    }
-  };
-
-  // Safe Date parsing function to prevent screen breakage
-  const renderFormattedDate = (dateString: string) => {
-    try {
-      if (!dateString) return "Just now";
-      return format(new Date(dateString), "PPp");
-    } catch (e) {
-      return "Order logged";
-    }
-  };
-
-  if (isLoading) {
-    return (
-      <div className="container max-w-2xl mx-auto py-12 px-4 flex justify-center">
-        <div className="animate-pulse space-y-4 w-full">
-          <div className="h-12 bg-muted rounded w-1/3 mx-auto"></div>
-          <div className="h-64 bg-muted rounded-xl"></div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isError || !order) {
-    return (
-      <div className="container max-w-2xl mx-auto py-12 px-4 text-center">
-        <AlertCircle className="w-12 h-12 text-destructive mx-auto mb-4" />
-        <h2 className="text-2xl font-bold mb-2">Order Not Found</h2>
-        <p className="text-muted-foreground mb-6">We couldn't find the order you're looking for.</p>
-        <Button asChild><Link href="/">Back to Home</Link></Button>
-      </div>
-    );
-  }
-
   return (
     <div className="container max-w-2xl mx-auto py-12 px-4">
       <Link href="/" className="inline-flex items-center text-sm font-medium text-muted-foreground hover:text-foreground mb-6 transition-colors">
@@ -112,10 +66,10 @@ export function Order() {
 
       <Card className="overflow-hidden border shadow-sm">
         <div className="bg-muted/30 p-8 text-center border-b">
-          <div className="flex justify-center mb-4">{getStatusIcon(order.status)}</div>
-          <h1 className="text-2xl font-bold mb-2">Order #{order.id}</h1>
-          <p className="text-muted-foreground mb-4">{getStatusMessage(order.status)}</p>
-          <div className="flex justify-center">{getStatusBadge(order.status)}</div>
+          <div className="flex justify-center mb-4">{getStatusIcon(order?.status)}</div>
+          <h1 className="text-2xl font-bold mb-2">Order #{order?.id}</h1>
+          <p className="text-muted-foreground mb-4">Tracking active via live servers.</p>
+          <div className="flex justify-center">{getStatusBadge(order?.status)}</div>
         </div>
 
         <CardContent className="p-8">
@@ -125,19 +79,15 @@ export function Order() {
               <dl className="space-y-4 text-sm">
                 <div>
                   <dt className="text-muted-foreground mb-1">Customer</dt>
-                  <dd className="font-medium text-foreground">{order.customerName}</dd>
-                  <dd className="text-foreground">{order.customerPhone}</dd>
+                  <dd className="font-medium text-foreground">{order?.customerName}</dd>
+                  <dd className="text-foreground">{order?.customerPhone}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground mb-1">File</dt>
                   <dd className="font-medium flex items-center text-foreground truncate">
                     <FileIcon className="w-4 h-4 mr-2 flex-shrink-0" />
-                    <span className="truncate">{order.fileName}</span>
+                    <span className="truncate">{order?.fileName}</span>
                   </dd>
-                </div>
-                <div>
-                  <dt className="text-muted-foreground mb-1">Date</dt>
-                  <dd className="font-medium text-foreground">{renderFormattedDate(order.createdAt || order.created_at)}</dd>
                 </div>
               </dl>
             </div>
@@ -146,30 +96,18 @@ export function Order() {
               <dl className="space-y-4 text-sm">
                 <div>
                   <dt className="text-muted-foreground mb-1">Configuration</dt>
-                  <dd className="font-medium text-foreground">{order.copies} {order.copies === 1 ? 'copy' : 'copies'} × {order.pages || 1} pages</dd>
-                  <dd className="text-foreground">{order.colorMode}, {order.paperSize}</dd>
+                  <dd className="font-medium text-foreground">{order?.copies} copies × {order?.pages || 1} pages</dd>
+                  <dd className="text-foreground">{order?.colorMode}, {order?.paperSize}</dd>
                 </div>
                 <div>
                   <dt className="text-muted-foreground mb-1">Amount</dt>
                   <dd className="font-medium text-foreground flex items-center text-lg">
-                    <IndianRupee className="w-4 h-4 mr-1" />{order.totalPrice}
+                    <IndianRupee className="w-4 h-4 mr-1" />{order?.totalPrice}
                   </dd>
                 </div>
-                {order.upiTransactionId && (
-                  <div>
-                    <dt className="text-muted-foreground mb-1">Payment UTR</dt>
-                    <dd className="font-mono text-xs bg-muted p-2 rounded truncate">{order.upiTransactionId}</dd>
-                  </div>
-                )}
               </dl>
             </div>
           </div>
-          {order.notes && (
-            <div className="mt-8 p-4 bg-muted/50 rounded-lg">
-              <h4 className="text-sm font-medium mb-1">Special Instructions:</h4>
-              <p className="text-sm italic">{order.notes}</p>
-            </div>
-          )}
         </CardContent>
       </Card>
     </div>
