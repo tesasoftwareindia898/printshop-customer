@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import { useParams, Link } from "wouter";
 import { format } from "date-fns";
-import { CheckCircle, Clock, File as FileIcon, Printer, IndianRupee, AlertCircle, ChevronLeft } from "lucide-react";
+import { CheckCircle, Clock, File as FileIcon, Printer, IndianRupee, AlertCircle, ChevronLeft, XCircle } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import { Button } from "@/components/ui/button";
 import { Badge } from "@/components/ui/badge";
@@ -43,6 +43,7 @@ export function Order() {
       case "confirmed": return <Badge variant="outline" className="bg-indigo-50 text-indigo-700 border-indigo-200">Payment Confirmed</Badge>;
       case "printing": return <Badge variant="outline" className="bg-purple-50 text-purple-700 border-purple-200">Printing Now</Badge>;
       case "completed": return <Badge variant="outline" className="bg-green-50 text-green-700 border-green-200">Ready for Pickup</Badge>;
+      case "cancelled": return <Badge variant="outline" className="bg-red-50 text-red-700 border-red-200">Cancelled</Badge>;
       default: return <Badge variant="outline">{status}</Badge>;
     }
   };
@@ -54,6 +55,7 @@ export function Order() {
       case "confirmed": return <CheckCircle className="w-12 h-12 text-indigo-500" />;
       case "printing": return <Printer className="w-12 h-12 text-purple-500" />;
       case "completed": return <CheckCircle className="w-12 h-12 text-green-500" />;
+      case "cancelled": return <XCircle className="w-12 h-12 text-red-500" />;
       default: return <AlertCircle className="w-12 h-12 text-gray-500" />;
     }
   };
@@ -65,7 +67,18 @@ export function Order() {
       case "confirmed": return "Payment received! We will start printing soon.";
       case "printing": return "Your document is currently being printed.";
       case "completed": return "Your order is ready! Please pick it up from the shop.";
+      case "cancelled": return "This order has been cancelled by the administrator.";
       default: return "Order status unknown.";
+    }
+  };
+
+  // Safe Date parsing function to prevent screen breakage
+  const renderFormattedDate = (dateString: string) => {
+    try {
+      if (!dateString) return "Just now";
+      return format(new Date(dateString), "PPp");
+    } catch (e) {
+      return "Order logged";
     }
   };
 
@@ -124,7 +137,7 @@ export function Order() {
                 </div>
                 <div>
                   <dt className="text-muted-foreground mb-1">Date</dt>
-                  <dd className="font-medium text-foreground">{format(new Date(order.createdAt), "PPp")}</dd>
+                  <dd className="font-medium text-foreground">{renderFormattedDate(order.createdAt || order.created_at)}</dd>
                 </div>
               </dl>
             </div>
