@@ -55,7 +55,7 @@ export function Home() {
       const data = await res.json();
       setUploadedFile({ fileName: data.fileName, fileUrl: data.fileUrl, fileSize: data.fileSize });
       setStep(2);
-      toast({ title: "✅ File uploaded!" });
+      toast({ title: "✅ File uploaded successfully!" });
     } catch {
       toast({ title: "Upload failed", variant: "destructive" });
     } finally { setIsUploading(false); }
@@ -67,26 +67,73 @@ export function Home() {
     if (file) handleFileUpload(file);
   }, []);
 
+  // Safe navigation function for moving to Step 3 after verifying Step 2 form values
+  const handleNextToPayment = async () => {
+    const isStep2Valid = await form.trigger(["customerName", "customerPhone", "pages", "copies"]);
+    if (isStep2Valid) {
+      if (!uploadedFile) {
+        toast({ title: "Please upload a file first", variant: "destructive" });
+        setStep(1);
+        return;
+      }
+      setStep(3);
+    }
+  };
+
   const onSubmit = async (values: FormValues) => {
-    if (!uploadedFile) { toast({ title: "Please upload a file first", variant: "destructive" }); return; }
-    if (step === 2) { setStep(3); return; }
-    if (step === 3 && !values.upiTransactionId) { form.setError("upiTransactionId", { message: "UTR required" }); return; }
+    if (!uploadedFile) { 
+      toast({ title: "Please upload a file first", variant: "destructive" }); 
+      setStep(1);
+      return; 
+    }
+    if (!values.upiTransactionId) { 
+      form.setError("upiTransactionId", { message: "UTR/Transaction ID required to verify payment" }); 
+      return; 
+    }
+    
     setIsSubmitting(true);
     try {
+      // 1. Create main print order record
       const orderRes = await fetch(`${API_URL}/api/orders`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ customerName: values.customerName, customerPhone: values.customerPhone, fileName: uploadedFile.fileName, fileUrl: uploadedFile.fileUrl, fileSize: uploadedFile.fileSize, copies: values.copies, colorMode: values.colorMode, paperSize: values.paperSize, pages: values.pages, pricePerPage, totalPrice, notes: values.notes }),
+        body: JSON.stringify({ 
+          customerName: values.customerName, 
+          customerPhone: values.customerPhone, 
+          fileName: uploadedFile.fileName, 
+          fileUrl: uploadedFile.fileUrl, 
+          fileSize: uploadedFile.fileSize, 
+          copies: values.copies, 
+          colorMode: values.colorMode, 
+          paperSize: values.paperSize, 
+          pages: values.pages, 
+          pricePerPage, 
+          totalPrice, 
+          notes: values.notes,
+          status: "payment_submitted" // Auto state trigger for Admin queue visibility
+        }),
       });
-      if (!orderRes.ok) throw new Error();
+      
+      if (!orderRes.ok) throw new Error("Failed to create base order");
       const order = await orderRes.json();
-      if (values.upiTransactionId) {
-        await fetch(`${API_URL}/api/orders/${order.id}/payment`, { method: "PATCH", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ upiTransactionId: values.upiTransactionId }) });
-      }
-      toast({ title: "🎉 Order placed!" });
+      
+      // 2. Patch transaction verification info
+      const paymentRes = await fetch(`${API_URL}/api/orders/${order.id}/payment`, { 
+        method: "PATCH", 
+        headers: { "Content-Type": "application/json" }, 
+        body: JSON.stringify({ upiTransactionId: values.upiTransactionId }) 
+      });
+
+      if (!paymentRes.ok) throw new Error("Order created but payment registration failed");
+
+      toast({ title: "🎉 Order placed successfully!" });
       setLocation(`/order/${order.id}`);
-    } catch { toast({ title: "Failed to create order", variant: "destructive" }); }
-    finally { setIsSubmitting(false); }
+    } catch (err: any) { 
+      console.error(err);
+      toast({ title: "Failed to create order", description: "Database communication breakdown.", variant: "destructive" }); 
+    } finally { 
+      setIsSubmitting(false); 
+    }
   };
 
   const qrUrl = `https://api.qrserver.com/v1/create-qr-code/?size=200x200&data=upi%3A%2F%2Fpay%3Fpa%3D8984740258%40fam%26pn%3DPrintShop%26am%3D${totalPrice}%26cu%3DINR&bgcolor=0f172a&color=ffffff`;
@@ -168,9 +215,10 @@ export function Home() {
             </div>
           )}
 
-          {/* Step 2: Settings */}
+          {/* Form wrapper handles programmatic layout across Step 2 and Step 3 smoothly */}
           <Form {...form}>
             <form onSubmit={form.handleSubmit(onSubmit)}>
+              {/* Step 2: Settings */}
               {step === 2 && (
                 <div>
                   <div className="p-8">
@@ -261,7 +309,7 @@ export function Home() {
                     </div>
                     <div className="flex gap-3">
                       <Button variant="outline" type="button" onClick={() => setStep(1)} className="border-gray-700 text-gray-300 hover:bg-gray-800">Back</Button>
-                      <Button type="button" onClick={() => form.handleSubmit(onSubmit)()} size="lg" className="bg-blue-600 hover:bg-blue-700 font-bold px-8">
+                      <Button type="button" onClick={handleNextToPayment} size="lg" className="bg-blue-600 hover:bg-blue-700 font-bold px-8 text-white">
                         Continue to Payment <ChevronRight className="w-4 h-4 ml-1" />
                       </Button>
                     </div>
@@ -317,7 +365,7 @@ export function Home() {
 
                       <div className="flex gap-3 pt-2">
                         <Button variant="outline" type="button" onClick={() => setStep(2)} className="flex-1 border-gray-700 text-gray-300 hover:bg-gray-800">Back</Button>
-                        <Button type="submit" className="flex-[2] bg-blue-600 hover:bg-blue-700 font-bold" size="lg" disabled={isSubmitting}>
+                        <Button type="submit" className="flex-[2] bg-blue-600 hover:bg-blue-700 font-bold text-white" size="lg" disabled={isSubmitting}>
                           {isSubmitting && <Loader2 className="w-4 h-4 mr-2 animate-spin" />}
                           Submit Order
                         </Button>
